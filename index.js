@@ -72,6 +72,7 @@ app.get('/status', async (req, res) => {
     res.json({
       online: device.result?.online ?? false,
       name: device.result?.name,
+      voltage: voltage,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
