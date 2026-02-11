@@ -69,10 +69,31 @@ app.get('/status', async (req, res) => {
     const token = await getToken();
     const device = await getDeviceStatus(token);
     
+    let voltage = null;
+    let current = null;
+    let power = null;
+    
+    // Знайти phase_a в статусах
+    const phaseA = device.result?.status?.find(s => s.code === 'phase_a');
+    if (phaseA) {
+      // Розкодувати Base64
+      const buffer = Buffer.from(phaseA.value, 'base64');
+      // Tuya формат: voltage (2 bytes), current (3 bytes), power (3 bytes)
+      voltage = (buffer[0] << 8 | buffer[1]) / 10; // В вольтах
+      current = (buffer[2] << 16 | buffer[3] << 8 | buffer[4]) / 1000; // В амперах
+      power = (buffer[5] << 16 | buffer[6] << 8 | buffer[7]); // В ватах
+    }
+    
+    // Знайти загальне споживання
+    const totalEnergy = device.result?.status?.find(s => s.code === 'total_forward_energy');
+    
     res.json({
       online: device.result?.online ?? false,
       name: device.result?.name,
       voltage: voltage,
+      current: current,
+      power: power,
+      totalEnergy: totalEnergy ? totalEnergy.value / 100 : null, // кВт·год
       timestamp: new Date().toISOString()
     });
   } catch (error) {
