@@ -83,6 +83,20 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
+app.get('/debug', async (req, res) => {
+  try {
+    const token = await getToken();
+    const device = await getDeviceStatus(token);
+    
+    res.json({
+      token: token ? 'received' : 'failed',
+      fullResponse: device
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Tuya Proxy running on port ${PORT}`);
