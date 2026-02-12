@@ -43,7 +43,7 @@ async function getDeviceStatus(token) {
   const contentHash = crypto.createHash('sha256').update('').digest('hex');
   
   const stringToSign = [method, contentHash, '', signUrl].join('\n');
-  const signStr = ACCESS_ID + token + t + signUrl;
+  const signStr = ACCESS_ID + token + t + stringToSign;
   
   const sign = crypto
     .createHmac('sha256', ACCESS_SECRET)
@@ -73,6 +73,7 @@ app.get('/status', async (req, res) => {
     let current = null;
     let power = null;
     
+    // Розкодувати phase_a
     const phaseA = device.result?.status?.find(s => s.code === 'phase_a');
     if (phaseA) {
       const buffer = Buffer.from(phaseA.value, 'base64');
@@ -81,34 +82,31 @@ app.get('/status', async (req, res) => {
       power = (buffer[5] << 16 | buffer[6] << 8 | buffer[7]);
     }
     
+    // Загальне споживання
+    const totalEnergy = device.result?.status?.find(s => s.code === 'total_forward_energy');
+    
     // Перевірка алертів
     const alerts = [];
+    
     if (voltage !== null) {
-      if (voltage < 200) alerts.push(`⚠️ Низька напруга: ${voltage}В`);
-      if (voltage > 250) alerts.push(`⚠️ Висока напруга: ${voltage}В`);
+      if (voltage < 200) {
+        alerts.push(`⚠️ Низька напруга: ${voltage}В`);
+      }
+      if (voltage > 250) {
+        alerts.push(`⚠️ Висока напруга: ${voltage}В`);
+      }
     }
     
-    const currentOnline = device.result?.online ?? false;
-    
-    // Форматувати час
-    const now = new Date();
-    const timestamp = now.toLocaleString('uk-UA', { 
-      timeZone: 'Europe/Kyiv',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-    
     res.json({
-      online: currentOnline,
-      voltage,
-      current,
-      power,
+      online: device.result?.online ?? false,
+      name: device.result?.name,
+      voltage: voltage,
+      current: current,
+      power: power,
+      totalEnergy: totalEnergy ? totalEnergy.value / 100 : null,
+      alerts: alerts,
       hasAlerts: alerts.length > 0,
-      alerts,
-      timestamp
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -117,6 +115,20 @@ app.get('/status', async (req, res) => {
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
+});
+
+app.get('/debug', async (req, res) => {
+  try {
+    const token = await getToken();
+    const device = await getDeviceStatus(token);
+    
+    res.json({
+      token: token ? 'received' : 'failed',
+      fullResponse: device
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 const PORT = process.env.PORT || 3000;
