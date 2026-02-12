@@ -43,7 +43,7 @@ async function getDeviceStatus(token) {
   const contentHash = crypto.createHash('sha256').update('').digest('hex');
   
   const stringToSign = [method, contentHash, '', signUrl].join('\n');
-  const signStr = ACCESS_ID + token + t + signToSign;
+  const signStr = ACCESS_ID + token + t + signUrl;
   
   const sign = crypto
     .createHmac('sha256', ACCESS_SECRET)
