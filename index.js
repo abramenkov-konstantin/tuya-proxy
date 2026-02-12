@@ -6,7 +6,7 @@ const app = express();
 const ACCESS_ID = process.env.TUYA_ACCESS_ID;
 const ACCESS_SECRET = process.env.TUYA_ACCESS_SECRET;
 const DEVICE_ID = process.env.TUYA_DEVICE_ID;
-const BASE_URL = 'https://openapi.tuyaeu.com'; // EU datacenter
+const BASE_URL = 'https://openapi.tuyaeu.com';
 
 async function getToken() {
   const t = Date.now().toString();
@@ -73,19 +73,29 @@ app.get('/status', async (req, res) => {
     let current = null;
     let power = null;
     
-    // Знайти phase_a в статусах
+    // Розкодувати phase_a
     const phaseA = device.result?.status?.find(s => s.code === 'phase_a');
     if (phaseA) {
-      // Розкодувати Base64
       const buffer = Buffer.from(phaseA.value, 'base64');
-      // Tuya формат: voltage (2 bytes), current (3 bytes), power (3 bytes)
-      voltage = (buffer[0] << 8 | buffer[1]) / 10; // В вольтах
-      current = (buffer[2] << 16 | buffer[3] << 8 | buffer[4]) / 1000; // В амперах
-      power = (buffer[5] << 16 | buffer[6] << 8 | buffer[7]); // В ватах
+      voltage = (buffer[0] << 8 | buffer[1]) / 10;
+      current = (buffer[2] << 16 | buffer[3] << 8 | buffer[4]) / 1000;
+      power = (buffer[5] << 16 | buffer[6] << 8 | buffer[7]);
     }
     
-    // Знайти загальне споживання
+    // Загальне споживання
     const totalEnergy = device.result?.status?.find(s => s.code === 'total_forward_energy');
+    
+    // Перевірка алертів
+    const alerts = [];
+    
+    if (voltage !== null) {
+      if (voltage < 200) {
+        alerts.push(`⚠️ Низька напруга: ${voltage}В`);
+      }
+      if (voltage > 250) {
+        alerts.push(`⚠️ Висока напруга: ${voltage}В`);
+      }
+    }
     
     res.json({
       online: device.result?.online ?? false,
@@ -93,7 +103,9 @@ app.get('/status', async (req, res) => {
       voltage: voltage,
       current: current,
       power: power,
-      totalEnergy: totalEnergy ? totalEnergy.value / 100 : null, // кВт·год
+      totalEnergy: totalEnergy ? totalEnergy.value / 100 : null,
+      alerts: alerts,
+      hasAlerts: alerts.length > 0,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
